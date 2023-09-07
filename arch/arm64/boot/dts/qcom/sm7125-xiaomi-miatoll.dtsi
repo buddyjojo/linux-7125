@@ -8,9 +8,10 @@
 #include <dt-bindings/arm/qcom,ids.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 #include "sm7125.dtsi"
 #include "pm6150.dtsi"
-#include "pm8150l.dtsi"
+#include "pm6150l.dtsi"
 
 /delete-node/ &ipa_fw_mem;
 /delete-node/ &rmtfs_mem;
@@ -24,16 +25,6 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
-
-		framebuffer@9c000000 {
-			compatible = "simple-framebuffer";
-			reg = <0x0 0x9c000000 0x0 (1080 * 2400 * 4)>;
-			width = <1080>;
-			height = <2400>;
-			stride = <(1080 * 4)>;
-			format = "a8r8g8b8";
-			clocks = <&gcc GCC_DISP_HF_AXI_CLK>;
-		};
 	};
 
 	gpio_keys: gpio-keys {
@@ -42,7 +33,7 @@
 		key-vol-down {
 			label = "Volume Up";
 			linux,code = <KEY_VOLUMEUP>;
-			gpios = <&pm8150l_gpios 2 GPIO_ACTIVE_LOW>;
+			gpios = <&pm6150l_gpios 2 GPIO_ACTIVE_LOW>;
 			debounce-interval = <15>;
 			linux,can-disable;
 			wakeup-source;
@@ -106,6 +97,17 @@
 			qcom,client-id = <1>;
 			qcom,vmid = <15>;
 		};
+	};
+};
+
+&pm6150l_gpios {
+	panel_reset_pins: panel-reset{
+		pins = "gpio3";
+		function = "func1";
+		qcom,drive-strength = <2>;
+		power-source = <0>;
+		bias-disable;
+		output-low;
 	};
 };
 
@@ -315,8 +317,57 @@
 	};
 };
 
-&dispcc {
-	status = "disabled";
+&dsi0 {
+	status = "okay";
+
+	panel@0 {
+		compatible = "xiaomi,nt36675-tianma";
+		reg = <0>;
+
+		backlight = <&pm6150l_wled>;
+
+		vddio-supply = <&vreg_l18a_3p0>;
+
+		reset-gpios = <&pm6150l_gpios 3 GPIO_ACTIVE_LOW>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&panel_reset_pins &panel_te_pin>;
+
+		port {
+			panel_in: endpoint {
+				remote-endpoint = <&dsi0_out>;
+			};
+		};
+	};
+};
+
+&dsi0_out {
+	remote-endpoint = <&panel_in>;
+	data-lanes = <0 1 2 3>;
+};
+
+&dsi_phy {
+	status = "okay";
+};
+
+&mdp {
+	status = "okay";
+};
+
+&mdss {
+	status = "okay";
+};
+
+&gpu {
+	status = "okay";
+
+	zap-shader {
+		memory-region = <&gpu_mem>;
+	};
+};
+
+&pm6150l_wled {
+ 	status = "okay";
 };
 
 &pm6150_resin {
@@ -390,6 +441,15 @@
 			function = "gpio";
 			bias-pull-up;
 			drive-strength = <2>;
+		};
+	};
+
+	panel_te_pin: panel-te {
+		mux {
+			pins = "gpio10";
+			function = "mdp_vsync";
+			drive-strength = <2>;
+			bias-pull-down;
 		};
 	};
 };
