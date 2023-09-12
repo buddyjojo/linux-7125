@@ -175,8 +175,8 @@
 		};
 
 		vreg_l9a_0p664: ldo9 {
-			regulator-min-microvolt = <488000>;
-			regulator-max-microvolt = <800000>;
+			regulator-min-microvolt = <640000>;
+			regulator-max-microvolt = <640000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_LPM>;
 		};
 
@@ -312,7 +312,7 @@
 
 		vreg_l11c_3p3: ldo11 {
 			regulator-min-microvolt = <3000000>;
-			regulator-max-microvolt = <3400000>;
+			regulator-max-microvolt = <3312000>;
 			regulator-initial-mode = <RPMH_REGULATOR_MODE_LPM>;
 		};
 
@@ -382,6 +382,32 @@
     status = "okay";
 };
 
+&spi11 {
+	clock-frequency = <50000000>;
+	status = "okay";
+
+	touchscreen@0 {
+		compatible = "novatek,NVT-ts-spi";
+		reg = <0>;
+
+		spi-max-frequency = <8000000>;
+
+		touch_vddio-supply = <&vreg_l18a_3p0>;
+		
+		interrupt-parent = <&tlmm>;
+		interrupts = <13 0x02>;
+
+		novatek,reset-gpio = <&tlmm 8 0x00>;
+		novatek,irq-gpio = <&tlmm 9 0x2001>;
+
+		/* 672A, 525B, 675, 526 */
+		novatek,swrst-n8-addr = <0x03f0fe>;
+		novatek,spi-rd-fast-addr = <0x03f310>;
+
+		status = "disabled";
+	};
+};
+
 &qupv3_id_0 {
 	status = "okay";
 };
@@ -427,6 +453,29 @@
 	firmware-name = "qcom/sm7125/miatoll/venus.mdt";
 };
 
+&uart3 {
+	status = "okay";
+
+	/delete-property/interrupts;
+	interrupts-extended = <&intc GIC_SPI 604 IRQ_TYPE_LEVEL_HIGH>,
+				<&tlmm 41 IRQ_TYPE_EDGE_FALLING>;
+
+	pinctrl-names = "default", "sleep";
+	pinctrl-1 = <&qup_uart3_sleep>;
+
+	bluetooth: bluetooth {
+		compatible = "qcom,wcn3991-bt";
+
+		firmware-name = "sm7125/miatoll/crnv32.bin";
+
+		vddio-supply = <&vreg_l10a_1p8>;
+		vddxo-supply = <&vreg_l1c_1p8>;
+		vddrf-supply = <&vreg_l2c_1p3>;
+		vddch0-supply = <&vreg_l10c_3p3>;
+		max-speed = <3200000>;
+	};
+};
+
 &sdhc_2 {
 	status = "okay";
 
@@ -441,6 +490,53 @@
 
 &tlmm {
 	gpio-reserved-ranges = <0 4>, <34 4>, <59 4>;
+
+	qup_uart3_sleep: qup-uart3-sleep {
+		pinmux {
+			pins = "gpio38", "gpio39",
+			       "gpio40", "gpio41";
+			function = "gpio";
+		};
+
+		pinconf-cts {
+			/*
+			 * Configure a pull-down on CTS to match the pull of
+			 * the Bluetooth module.
+			 */
+			pins = "gpio38";
+			bias-pull-down;
+		};
+
+		pinconf-rts {
+			/*
+			 * Configure pull-down on RTS. As RTS is active low
+			 * signal, pull it low to indicate the BT SoC that it
+			 * can wakeup the system anytime from suspend state by
+			 * pulling RX low (by sending wakeup bytes).
+			 */
+			 pins = "gpio39";
+			 bias-pull-down;
+		};
+
+		pinconf-tx {
+			/*
+			 * Configure pull-up on TX when it isn't actively driven
+			 * to prevent BT SoC from receiving garbage during sleep.
+			 */
+			pins = "gpio40";
+			bias-pull-up;
+		};
+
+		pinconf-rx {
+			/*
+			 * Configure a pull-up on RX. This is needed to avoid
+			 * garbage data when the TX pin of the Bluetooth module
+			 * is floating which may cause spurious wakeups.
+			 */
+			pins = "gpio41";
+			bias-pull-up;
+		};
+	};
 
 	sdc2_on: sdc2-on-state {
 		clk-pins {
@@ -493,6 +589,33 @@
 			function = "gpio";
 			bias-pull-up;
 			drive-strength = <2>;
+		};
+	};
+
+	ts_default_pins: ts-default-state {
+		mux {
+			pins = "gpio9", "gpio8";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+ 
+	ts_int_suspend: ts-int-suspend-state {
+		mux {
+			pins = "gpio9";
+			function = "gpio";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+ 
+	ts_reset_suspend: ts-reset-suspend-state {
+		mux {
+			pins = "gpio8";
+			function = "gpio";
+			drive-strength = <2>;
+			bias-disable;
 		};
 	};
 
